@@ -409,7 +409,7 @@ LRESULT CALLBACK HookedWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPara
 	else if (uMsg == WM_EXITMENULOOP) {
 		LRESULT ret = WNDPROC(OldWndProc)(hwnd, uMsg, wParam, lParam);
 		
-		//UnhookWnd(hwnd);
+		UnhookWnd(hwnd);
 
 		return ret;
 	}
