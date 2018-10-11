@@ -32,6 +32,9 @@ WARRANTIES OF MERCHANTABILITY AND/OR FITNESS FOR A PARTICULAR PURPOSE.
 #include <Shlwapi.h>
 #pragma comment(lib, "shlwapi.lib")
 
+extern UINT g_QCMFlags;
+extern void HookShell();
+extern HBITMAP Icon_Get();
 
 extern HINSTANCE g_hInst;
 extern long g_cDllRef;
@@ -155,9 +158,6 @@ IFACEMETHODIMP FileContextMenuExt::Initialize(
 #pragma endregion
 
 #pragma region IContextMenu
-extern UINT g_QCMFlags;
-extern void HookShell();
-extern HBITMAP Icon_Get();
 //
 //   FUNCTION: FileContextMenuExt::QueryContextMenu
 //
@@ -171,8 +171,8 @@ IFACEMETHODIMP FileContextMenuExt::QueryContextMenu(
     HMENU hMenu, UINT indexMenu, UINT idCmdFirst, UINT idCmdLast, UINT uFlags)
 {
 	g_QCMFlags = uFlags;
-
 	HookShell();
+	
 
 	/*
 
