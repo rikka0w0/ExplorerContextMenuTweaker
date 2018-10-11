@@ -38,13 +38,7 @@ extern long g_cDllRef;
 
 #define IDM_DISPLAY             0  // The command's identifier offset
 
-FileContextMenuExt::FileContextMenuExt(void) : m_cRef(1), 
-    m_pszVerb("cppdisplay"),
-    m_pwszVerb(L"cppdisplay"),
-    m_pszVerbCanonicalName("CppDisplayFileName"),
-    m_pwszVerbCanonicalName(L"CppDisplayFileName"),
-    m_pszVerbHelpText("Display File Name (C++)"),
-    m_pwszVerbHelpText(L"Display File Name (C++)")
+FileContextMenuExt::FileContextMenuExt(void) : m_cRef(1)
 {
     InterlockedIncrement(&g_cDllRef);
 
@@ -179,6 +173,10 @@ IFACEMETHODIMP FileContextMenuExt::QueryContextMenu(
 	g_QCMFlags = uFlags;
 
 	HookShell();
+
+	/*
+
+
     // If uFlags include CMF_DEFAULTONLY then we should not do anything.
     if (CMF_DEFAULTONLY & uFlags)
     {
@@ -189,6 +187,7 @@ IFACEMETHODIMP FileContextMenuExt::QueryContextMenu(
     // Learn how to add sub-menu from:
     // http://www.codeproject.com/KB/shell/ctxextsubmenu.aspx
 
+	
     MENUITEMINFO mii = { sizeof(mii) };
     mii.fMask = MIIM_STRING | MIIM_FTYPE | MIIM_ID | MIIM_STATE | MIIM_BITMAP;
     mii.wID = idCmdFirst + IDM_DISPLAY;
@@ -216,6 +215,10 @@ IFACEMETHODIMP FileContextMenuExt::QueryContextMenu(
     // Set the code value to the offset of the largest command identifier 
     // that was assigned, plus one (1).
     return MAKE_HRESULT(SEVERITY_SUCCESS, 0, USHORT(IDM_DISPLAY + 1));
+
+	*/
+
+	return MAKE_HRESULT(SEVERITY_SUCCESS, 0, 0);
 }
 
 
@@ -260,7 +263,7 @@ IFACEMETHODIMP FileContextMenuExt::InvokeCommand(LPCMINVOKECOMMANDINFO pici)
     if (!fUnicode && HIWORD(pici->lpVerb))
     {
         // Is the verb supported by this context menu extension?
-        if (StrCmpIA(pici->lpVerb, m_pszVerb) == 0)
+        if (StrCmpIA(pici->lpVerb, "cppdisplay") == 0)
         {
             OnVerbDisplayFileName(pici->hwnd);
         }
@@ -278,7 +281,7 @@ IFACEMETHODIMP FileContextMenuExt::InvokeCommand(LPCMINVOKECOMMANDINFO pici)
     else if (fUnicode && HIWORD(((CMINVOKECOMMANDINFOEX*)pici)->lpVerbW))
     {
         // Is the verb supported by this context menu extension?
-        if (StrCmpIW(((CMINVOKECOMMANDINFOEX*)pici)->lpVerbW, m_pwszVerb) == 0)
+        if (StrCmpIW(((CMINVOKECOMMANDINFOEX*)pici)->lpVerbW, L"cppdisplay") == 0)
         {
             OnVerbDisplayFileName(pici->hwnd);
         }
@@ -340,7 +343,7 @@ IFACEMETHODIMP FileContextMenuExt::GetCommandString(UINT_PTR idCommand,
             // Only useful for pre-Vista versions of Windows that have a 
             // Status bar.
             hr = StringCchCopy(reinterpret_cast<PWSTR>(pszName), cchMax, 
-                m_pwszVerbHelpText);
+				L"Display File Name (C++)");
             break;
 
         case GCS_VERBW:
@@ -348,7 +351,7 @@ IFACEMETHODIMP FileContextMenuExt::GetCommandString(UINT_PTR idCommand,
             // discover the canonical name for the verb passed in through 
             // idCommand.
             hr = StringCchCopy(reinterpret_cast<PWSTR>(pszName), cchMax, 
-                m_pwszVerbCanonicalName);
+				L"CppDisplayFileName");
             break;
 
         default:

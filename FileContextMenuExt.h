@@ -67,11 +67,4 @@ private:
 
     // The method that handles the "display" verb.
     void OnVerbDisplayFileName(HWND hWnd);
-
-    PCSTR m_pszVerb;
-    PCWSTR m_pwszVerb;
-    PCSTR m_pszVerbCanonicalName;
-    PCWSTR m_pwszVerbCanonicalName;
-    PCSTR m_pszVerbHelpText;
-    PCWSTR m_pwszVerbHelpText;
 };
