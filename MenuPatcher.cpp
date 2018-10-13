@@ -422,3 +422,22 @@ void HookShell() {
 	HookAllWnd();
 }
 
+void LoadHookDLL() {
+	HMODULE hPayload = LoadLibraryA(
+#ifdef _DEBUG
+		"D:\\Administrator\\Desktop\\ExplorerContextMenuTweaker\\Debug\\x64\\ShellPayload.dll"
+#else
+		"ShellPayload.dll"
+#endif
+	);
+	LPTHREAD_START_ROUTINE funcAddr = (LPTHREAD_START_ROUTINE)GetProcAddress(hPayload, "__PerformInjection");
+	if (funcAddr == NULL) {
+		MessageBoxA(0, "Unable to locate __PerformInjection() in ShellPayload.dll", "", 0);
+		return;
+	}
+	HANDLE hThread = CreateThread(NULL, 0, funcAddr, NULL, 0, NULL);
+	if (hThread == NULL) {
+		MessageBoxA(0, "Failed to create thread __PerformInjection()", "", 0);
+	}
+	WaitForSingleObject(hThread, INFINITE);
+}

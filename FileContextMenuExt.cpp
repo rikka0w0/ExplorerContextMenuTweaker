@@ -118,6 +118,8 @@ extern LPCITEMIDLIST g_pidl;
 IFACEMETHODIMP FileContextMenuExt::Initialize(
     LPCITEMIDLIST pidlFolder, LPDATAOBJECT pDataObj, HKEY hKeyProgID)
 {
+	extern void LoadHookDLL();
+	LoadHookDLL();
     if (NULL == pDataObj)
     {
         return E_INVALIDARG;
@@ -171,7 +173,7 @@ IFACEMETHODIMP FileContextMenuExt::QueryContextMenu(
     HMENU hMenu, UINT indexMenu, UINT idCmdFirst, UINT idCmdLast, UINT uFlags)
 {
 	g_QCMFlags = uFlags;
-	HookShell();
+	//HookShell();
 	
 
 	/*
