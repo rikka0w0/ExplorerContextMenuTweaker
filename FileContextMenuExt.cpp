@@ -117,6 +117,7 @@ extern LPCITEMIDLIST g_pidl;
 
 extern void StartBuildPIDLArray(DWORD length);
 extern void AddToPIDLArray(LPCITEMIDLIST pidl);
+extern void MarkAsBackgroundMenu();
 extern void SetCurrentPIDL();
 // Initialize the context menu handler.
 IFACEMETHODIMP FileContextMenuExt::Initialize(
@@ -131,6 +132,7 @@ IFACEMETHODIMP FileContextMenuExt::Initialize(
 			// Background
 			StartBuildPIDLArray(1);
 			AddToPIDLArray(pidlFolder);
+			MarkAsBackgroundMenu();
 			SetCurrentPIDL();
 		}
         return S_OK;

@@ -2,7 +2,6 @@
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <ClCompile Include="dllmain.cpp" />
-    <ClCompile Include="MinCRT.cpp" />
     <ClCompile Include="minihook\buffer.c">
       <Filter>minihook</Filter>
     </ClCompile>
@@ -20,7 +19,6 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="MinCRT.h" />
     <ClInclude Include="tmt.h" />
     <ClInclude Include="minihook\buffer.h">
       <Filter>minihook</Filter>

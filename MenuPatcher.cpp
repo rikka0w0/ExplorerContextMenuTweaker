@@ -459,6 +459,10 @@ void AddToPIDLArray(LPCITEMIDLIST pidl) {
 	g_PIDLArray_curId++;
 }
 
+void MarkAsBackgroundMenu() {
+	g_PIDLArray[0] = NULL;
+}
+
 void SetCurrentPIDL() {
 	HMODULE hPayload = GetShellPayload();
 	LPTHREAD_START_ROUTINE funcAddr = (LPTHREAD_START_ROUTINE)GetProcAddress(hPayload, "__SetCurrentPIDL");

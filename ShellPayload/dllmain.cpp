@@ -1,6 +1,7 @@
 #include "tmt.h"
 #include "minihook\MinHook.h"
 #include <shlobj.h>
+#include <shlwapi.h>
 
 static HMODULE gLibModule = 0;
 
@@ -17,51 +18,77 @@ HRESULT FillContextMenuFromPIDL(LPCITEMIDLIST* pidl, DWORD pidl_len, HMENU hTopM
 	IContextMenu *pcm;
 	HRESULT hr;
 
-	IShellFolder *psfDesktop;
-	if (SUCCEEDED(SHGetDesktopFolder(&psfDesktop))) {
+	if (pidl_len == 0) {
+		IShellFolder *psf;
+		LPCITEMIDLIST pidlChild;
+		hr = SHBindToParent(pidl[0], IID_IShellFolder, (void**)&psf, &pidlChild);
+		if (FAILED(hr))
+			return hr;
+
+		IShellView *psw;
+		hr = psf->CreateViewObject(NULL, IID_IShellView, (void**)&psw);
+		if (FAILED(hr))
+			return hr;
+
+		hr = psw->GetItemObject(SVGIO_BACKGROUND, IID_IContextMenu, (void**)&pcm);
+
+		if (FAILED(hr))
+			return hr;
+
+		psw->Release();
+		psf->Release();
+	}
+	else {
+		IShellFolder *psfDesktop;
+		SHGetDesktopFolder(&psfDesktop);
+		if (FAILED(hr))
+			return hr;
+
 		hr = psfDesktop->GetUIObjectOf(NULL, pidl_len, pidl, IID_IContextMenu, NULL, (void**)&pcm);
 
+		psfDesktop->Release();
+	}	
+
+	if (SUCCEEDED(hr)) {
+		hr = pcm->QueryContextMenu(hTopMenu, 0, 1, 0x7FFF, uFlags);
+
 		if (SUCCEEDED(hr)) {
-			hr = pcm->QueryContextMenu(hTopMenu, 0, 1, 0x7FFF, uFlags | CMF_ITEMMENU);
+			IContextMenu3* hContextMenu3 = NULL;
+			IContextMenu2* hContextMenu2 = NULL;
 
-			if (SUCCEEDED(hr)) {
-				IContextMenu3* hContextMenu3 = NULL;
-				IContextMenu2* hContextMenu2 = NULL;
+			/*
+			if (SUCCEEDED(pcm->QueryInterface(IID_IContextMenu3, (void**)&hContextMenu3))) {
+			LRESULT lres;
 
-				/*
-				if (SUCCEEDED(pcm->QueryInterface(IID_IContextMenu3, (void**)&hContextMenu3))) {
-				LRESULT lres;
+			hContextMenu3->HandleMenuMsg2(WM_INITMENUPOPUP, (WPARAM)hTopMenu, 0, &lres);
 
-				hContextMenu3->HandleMenuMsg2(WM_INITMENUPOPUP, (WPARAM)hTopMenu, 0, &lres);
+			for (int pos = 0; pos < GetMenuItemCount(hTopMenu); pos++) {
+			HMENU subMenu = GetSubMenu(hTopMenu, pos);
+			if (subMenu != NULL) {
+			LPARAM lparam = (LPARAM)(MAKELONG(pos, FALSE));
+			hContextMenu3->HandleMenuMsg2(WM_INITMENUPOPUP, (WPARAM)subMenu, lparam, &lres);
+			}
+			}
+			//hContextMenu3->Release();
+			}*/
+
+			if (SUCCEEDED(pcm->QueryInterface(IID_IContextMenu2, (void**)&hContextMenu2))) {
+				hContextMenu2->HandleMenuMsg(WM_INITMENUPOPUP, (WPARAM)hTopMenu, FALSE);
 
 				for (int pos = 0; pos < GetMenuItemCount(hTopMenu); pos++) {
-				HMENU subMenu = GetSubMenu(hTopMenu, pos);
-				if (subMenu != NULL) {
-				LPARAM lparam = (LPARAM)(MAKELONG(pos, FALSE));
-				hContextMenu3->HandleMenuMsg2(WM_INITMENUPOPUP, (WPARAM)subMenu, lparam, &lres);
-				}
-				}
-				//hContextMenu3->Release();
-				}*/
-
-				if (SUCCEEDED(pcm->QueryInterface(IID_IContextMenu2, (void**)&hContextMenu2))) {
-					hContextMenu2->HandleMenuMsg(WM_INITMENUPOPUP, (WPARAM)hTopMenu, FALSE);
-
-					for (int pos = 0; pos < GetMenuItemCount(hTopMenu); pos++) {
-						HMENU subMenu = GetSubMenu(hTopMenu, pos);
-						if (subMenu != NULL) {
-							LPARAM lparam = (LPARAM)(MAKELONG(pos, FALSE));
-							hContextMenu2->HandleMenuMsg(WM_INITMENUPOPUP, (WPARAM)subMenu, lparam);
-						}
+					HMENU subMenu = GetSubMenu(hTopMenu, pos);
+					if (subMenu != NULL) {
+						LPARAM lparam = (LPARAM)(MAKELONG(pos, FALSE));
+						hContextMenu2->HandleMenuMsg(WM_INITMENUPOPUP, (WPARAM)subMenu, lparam);
 					}
-					//hContextMenu2->Release();
 				}
-
-				ret = MAKE_HRESULT(SEVERITY_SUCCESS, 0, 0);
+				//hContextMenu2->Release();
 			}
 
-			//pcm->Release();
+			ret = MAKE_HRESULT(SEVERITY_SUCCESS, 0, 0);
 		}
+
+		//pcm->Release();
 	}
 
 	return ret;
@@ -138,29 +165,39 @@ FPT_TrackPopupMenu fpTrackPopupMenu;
 LONG_PTR g_oldWndProc = NULL;
 
 LRESULT CALLBACK HookedWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
-	static HMENU root;
+	static HMENU hMenuRoot;
+	static int level;
+
 	LRESULT ret = WNDPROC(g_oldWndProc)(hwnd, uMsg, wParam, lParam);
-	if (uMsg == WM_INITMENUPOPUP) {
+	
+	if (uMsg == WM_INITMENU) {
+		hMenuRoot = NULL;
+		level = -1;
+	} else if (uMsg == WM_INITMENUPOPUP) {
 		HMENU hMenu = (HMENU)wParam;
 		WORD pos = LOWORD(lParam);
 
-		if (pos == 0) {
-			ClassicMenuShell(hMenu);
-			root = hMenu;
-		}
-		else {/*
-			HMENU iconSource = CreatePopupMenu();								// Create an empty menu
-			FillContextMenuFromPIDL(g_last_pidl, g_last_pidl_len, iconSource, g_last_QCMFlags);	// And fill it
-			if (GetMenuItemCount(iconSource) != GetMenuItemCount(root)) {
-				int a = GetMenuItemCount(iconSource);
-				int b = GetMenuItemCount(root);
-				for (int i = 0; i < GetMenuItemCount(iconSource); i++) {
-					char text[256];
-					GetMenuStringA(iconSource, i, text, sizeof(text), MF_BYPOSITION);
-					MessageBoxA(0, text, "", 0);
-				}
+		if (level == -1) {
+			if (pos == 0) {
+				hMenuRoot = hMenu;
+				level = 0;
+
+				ClassicMenuShell(hMenu);
 			}
-			DestroyMenu(iconSource);*/
+		}
+		else {
+			level++;
+			ClassicMenuShell(hMenu);
+			if (level == 1) {
+
+			}
+		}		
+	}
+	else if (uMsg == WM_UNINITMENUPOPUP) {
+		level--;
+		if (level == -1) {
+			// Menu closing
+
 		}
 	}
 
@@ -176,7 +213,9 @@ BOOL WINAPI HookedTrackPopupMenu(HMENU hMenu, UINT uFlags, int x, int y, int nRe
 	}
 
 	BOOL ret = fpTrackPopupMenu(hMenu, uFlags, x, y, nReserved, hWnd, prcRect);
+	//free(g_last_pidl);
 	g_last_pidl = NULL;
+
 
 	if (g_oldWndProc != NULL) {
 		SetWindowLongPtr(hWnd, GWLP_WNDPROC, g_oldWndProc);
