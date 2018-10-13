@@ -9,9 +9,31 @@ DWORD g_last_pidl_len;
 LPCITEMIDLIST* g_last_pidl;
 UINT g_last_QCMFlags;
 
+typedef struct tagMenuLevel *LPMenuLevel;
+
+typedef struct tagMenuLevel {
+	LPMenuLevel parent;
+
+	HMENU hMenuOriginal;
+	HMENU hMenuIconSource;
+
+	// Pos in parent menu
+	WORD posInOriginal;
+	WORD posInIconSource;
+
+	WORD level;
+
+} MenuLevel;
+
+typedef struct tagRootMenuInfo {
+	HMENU hMenu;
+	HMENU hIconSource;
+	IContextMenu* pContextMenu;
+} RootMenuInfo;
+
 #pragma region ShellHelper
 // Callee need to DestroyMenu(hTopMenu);
-HRESULT FillContextMenuFromPIDL(LPCITEMIDLIST* pidl, DWORD pidl_len, HMENU hTopMenu, UINT uFlags)
+HRESULT FillContextMenuFromPIDL(LPCITEMIDLIST* pidl, DWORD pidl_len, HMENU hTopMenu, UINT uFlags, IContextMenu** pContextMenu)
 {
 	HRESULT ret = MAKE_HRESULT(SEVERITY_ERROR, 0, 0);
 
@@ -27,69 +49,72 @@ HRESULT FillContextMenuFromPIDL(LPCITEMIDLIST* pidl, DWORD pidl_len, HMENU hTopM
 
 		IShellView *psw;
 		hr = psf->CreateViewObject(NULL, IID_IShellView, (void**)&psw);
-		if (FAILED(hr))
+		if (FAILED(hr)) {
+			psf->Release();
 			return hr;
+		}
 
 		hr = psw->GetItemObject(SVGIO_BACKGROUND, IID_IContextMenu, (void**)&pcm);
-
-		if (FAILED(hr))
-			return hr;
 
 		psw->Release();
 		psf->Release();
 	}
 	else {
 		IShellFolder *psfDesktop;
-		SHGetDesktopFolder(&psfDesktop);
-		if (FAILED(hr))
+		hr = SHGetDesktopFolder(&psfDesktop);
+		if (FAILED(hr)) {
+			psfDesktop->Release();
 			return hr;
+		}
 
 		hr = psfDesktop->GetUIObjectOf(NULL, pidl_len, pidl, IID_IContextMenu, NULL, (void**)&pcm);
 
 		psfDesktop->Release();
-	}	
+	}
 
-	if (SUCCEEDED(hr)) {
-		hr = pcm->QueryContextMenu(hTopMenu, 0, 1, 0x7FFF, uFlags);
+	if (FAILED(hr))
+		return hr;
 
-		if (SUCCEEDED(hr)) {
-			IContextMenu3* hContextMenu3 = NULL;
-			IContextMenu2* hContextMenu2 = NULL;
+	*pContextMenu = pcm;
+	hr = pcm->QueryContextMenu(hTopMenu, 0, 1, 0x7FFF, uFlags);
 
-			/*
-			if (SUCCEEDED(pcm->QueryInterface(IID_IContextMenu3, (void**)&hContextMenu3))) {
-			LRESULT lres;
+	if (FAILED(hr)) {
+		pcm->Release();
+		return hr;
+	}
+		
+	IContextMenu3* hContextMenu3 = NULL;
+	IContextMenu2* hContextMenu2 = NULL;
 
-			hContextMenu3->HandleMenuMsg2(WM_INITMENUPOPUP, (WPARAM)hTopMenu, 0, &lres);
+	/*
+	if (SUCCEEDED(pcm->QueryInterface(IID_IContextMenu3, (void**)&hContextMenu3))) {
+	LRESULT lres;
 
-			for (int pos = 0; pos < GetMenuItemCount(hTopMenu); pos++) {
+	hContextMenu3->HandleMenuMsg2(WM_INITMENUPOPUP, (WPARAM)hTopMenu, 0, &lres);
+
+	for (int pos = 0; pos < GetMenuItemCount(hTopMenu); pos++) {
+	HMENU subMenu = GetSubMenu(hTopMenu, pos);
+	if (subMenu != NULL) {
+	LPARAM lparam = (LPARAM)(MAKELONG(pos, FALSE));
+	hContextMenu3->HandleMenuMsg2(WM_INITMENUPOPUP, (WPARAM)subMenu, lparam, &lres);
+	}
+	}
+	//hContextMenu3->Release();
+	}*/
+
+	if (SUCCEEDED(pcm->QueryInterface(IID_IContextMenu2, (void**)&hContextMenu2))) {
+		hContextMenu2->HandleMenuMsg(WM_INITMENUPOPUP, (WPARAM)hTopMenu, FALSE);
+
+		for (int pos = 0; pos < GetMenuItemCount(hTopMenu); pos++) {
 			HMENU subMenu = GetSubMenu(hTopMenu, pos);
 			if (subMenu != NULL) {
-			LPARAM lparam = (LPARAM)(MAKELONG(pos, FALSE));
-			hContextMenu3->HandleMenuMsg2(WM_INITMENUPOPUP, (WPARAM)subMenu, lparam, &lres);
+				LPARAM lparam = (LPARAM)(MAKELONG(pos, FALSE));
+				hContextMenu2->HandleMenuMsg(WM_INITMENUPOPUP, (WPARAM)subMenu, lparam);
 			}
-			}
-			//hContextMenu3->Release();
-			}*/
-
-			if (SUCCEEDED(pcm->QueryInterface(IID_IContextMenu2, (void**)&hContextMenu2))) {
-				hContextMenu2->HandleMenuMsg(WM_INITMENUPOPUP, (WPARAM)hTopMenu, FALSE);
-
-				for (int pos = 0; pos < GetMenuItemCount(hTopMenu); pos++) {
-					HMENU subMenu = GetSubMenu(hTopMenu, pos);
-					if (subMenu != NULL) {
-						LPARAM lparam = (LPARAM)(MAKELONG(pos, FALSE));
-						hContextMenu2->HandleMenuMsg(WM_INITMENUPOPUP, (WPARAM)subMenu, lparam);
-					}
-				}
-				//hContextMenu2->Release();
-			}
-
-			ret = MAKE_HRESULT(SEVERITY_SUCCESS, 0, 0);
 		}
-
-		//pcm->Release();
 	}
+
+	ret = MAKE_HRESULT(SEVERITY_SUCCESS, 0, 0);	
 
 	return ret;
 }
@@ -120,6 +145,46 @@ void ClassicMenuShell(HMENU hMenu) {
 		HBITMAP hBmp = *((HBITMAP*)(itemData + 0x20));
 		if (hBmpHnd == NULL && hBmp != NULL)
 			SetMenuItemBitmaps(hMenu, i, MF_BYPOSITION, hBmp, NULL);
+	}
+}
+
+void ClassicMenuShell2(HMENU hMenu, HMENU hIconSource) {
+	MENUINFO info;
+	info.cbSize = sizeof(MENUINFO);
+	info.fMask = MIM_BACKGROUND;
+	GetMenuInfo(hMenu, &info);
+	info.hbrBack = nullptr;
+	SetMenuInfo(hMenu, &info);
+
+	for (int i = 0; i < GetMenuItemCount(hMenu); i++) {
+		UINT id = GetMenuItemID(hMenu, i);
+
+		MENUITEMINFO menuInfo = { 0 };
+		menuInfo.cbSize = sizeof(MENUITEMINFO);
+		menuInfo.fMask = MIIM_DATA | MIIM_BITMAP | MIIM_FTYPE;
+		GetMenuItemInfo(hMenu, i, true, &menuInfo);
+		ULONG_PTR itemData = menuInfo.dwItemData;
+		HBITMAP hBmpOrignal = menuInfo.hbmpItem;
+
+		menuInfo.fType &= ~MFT_OWNERDRAW;
+		menuInfo.fMask = MIIM_FTYPE;
+		SetMenuItemInfo(hMenu, i, true, &menuInfo);
+
+		menuInfo.fMask = MIIM_BITMAP;
+		GetMenuItemInfo(hIconSource, i, true, &menuInfo);
+		HBITMAP hIconSrc = menuInfo.hbmpItem;
+
+		if (hBmpOrignal == NULL) {
+			if (hIconSrc != NULL) {
+				SetMenuItemBitmaps(hMenu, i, MF_BYPOSITION, menuInfo.hbmpItem, NULL);
+			}
+			else {
+				HBITMAP hBmp = *((HBITMAP*)(itemData + 0x20));
+				if (!SetMenuItemBitmaps(hMenu, i, MF_BYPOSITION, hBmp, NULL)) {
+					SetMenuItemBitmaps(hMenu, i, MF_BYPOSITION, *((HBITMAP*)(itemData + 0x18)), NULL);
+				}
+			}
+		}			
 	}
 }
 
@@ -159,45 +224,112 @@ HWND IdentifyTarget(HWND hWnd) {
 	return NULL;
 }
 
+BOOL FindIndexInResMenu(HMENU hMenu, WORD pos, HMENU hResMenu, WORD* rpos) {
+	char text[256];
+	GetMenuStringA(hMenu, pos, text, sizeof(text), MF_BYPOSITION);
+
+	int cItem = GetMenuItemCount(hResMenu);
+	for (int i = 0; i < cItem; i++) {
+		char text2[256];
+		GetMenuStringA(hResMenu, i, text2, sizeof(text2), MF_BYPOSITION);
+		if (strcmp(text, text2) == 0) {
+			*rpos = i;
+			return TRUE;
+		}
+	}
+
+	return FALSE;
+}
+
+LPMenuLevel PushMenuLevel(LPMenuLevel curMenuLevel, HMENU hMenu, WORD pos, HMENU hResource, WORD posInRes) {
+	LPMenuLevel nextMenuLevel = (LPMenuLevel)malloc(sizeof(MenuLevel));
+	nextMenuLevel->parent = curMenuLevel;
+	nextMenuLevel->hMenuOriginal = hMenu;
+	nextMenuLevel->hMenuIconSource = hResource;
+	nextMenuLevel->posInOriginal = pos;
+	nextMenuLevel->posInIconSource = posInRes;
+	if (curMenuLevel == NULL)
+		nextMenuLevel->level = 0;	// Root level
+	else
+		nextMenuLevel->level = curMenuLevel->level + 1;
+
+	return nextMenuLevel;
+}
+
 #pragma region TrackPopupMenuHook
 typedef BOOL (WINAPI *FPT_TrackPopupMenu)(HMENU, UINT, int, int, int, HWND, CONST RECT*);
 FPT_TrackPopupMenu fpTrackPopupMenu;
 LONG_PTR g_oldWndProc = NULL;
 
 LRESULT CALLBACK HookedWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
-	static HMENU hMenuRoot;
-	static int level;
+	static RootMenuInfo g_rootMenuInfo;
+	static LPMenuLevel g_curMenuLevel;
 
 	LRESULT ret = WNDPROC(g_oldWndProc)(hwnd, uMsg, wParam, lParam);
 	
 	if (uMsg == WM_INITMENU) {
-		hMenuRoot = NULL;
-		level = -1;
+		g_curMenuLevel = NULL;
 	} else if (uMsg == WM_INITMENUPOPUP) {
 		HMENU hMenu = (HMENU)wParam;
 		WORD pos = LOWORD(lParam);
 
-		if (level == -1) {
+		if (g_last_pidl == NULL) {
+			// If we dont have information to generate an icon source....
+			ClassicMenuShell(hMenu);
+			return ret;
+		}
+
+		if (g_curMenuLevel == NULL) {
 			if (pos == 0) {
-				hMenuRoot = hMenu;
-				level = 0;
+				g_rootMenuInfo.hMenu = hMenu;
+				g_rootMenuInfo.hIconSource = NULL;
+				g_rootMenuInfo.pContextMenu = NULL;
 
 				ClassicMenuShell(hMenu);
+
+				// Icon resource is not ready, then generate one
+				g_rootMenuInfo.hIconSource = CreatePopupMenu();
+				FillContextMenuFromPIDL(g_last_pidl, g_last_pidl_len, g_rootMenuInfo.hIconSource, g_last_QCMFlags, &(g_rootMenuInfo.pContextMenu));
+				int menuItemCount = GetMenuItemCount(g_rootMenuInfo.hMenu);
+				int menuItemCount2 = GetMenuItemCount(g_rootMenuInfo.hIconSource);
+
+				g_curMenuLevel = PushMenuLevel(NULL, hMenu, 0, g_rootMenuInfo.hIconSource, 0);
 			}
 		}
 		else {
-			level++;
-			ClassicMenuShell(hMenu);
-			if (level == 1) {
+			WORD rpos;
+			if (FindIndexInResMenu(g_curMenuLevel->hMenuOriginal, pos, g_curMenuLevel->hMenuIconSource, &rpos)) {
+				HMENU subMenuRes = GetSubMenu(g_curMenuLevel->hMenuIconSource, rpos);
+				g_curMenuLevel = PushMenuLevel(g_curMenuLevel, hMenu, pos, subMenuRes, rpos);
 
+				ClassicMenuShell2(hMenu, subMenuRes);
 			}
-		}		
+			else {
+				ClassicMenuShell(hMenu);
+			}
+		}
 	}
 	else if (uMsg == WM_UNINITMENUPOPUP) {
-		level--;
-		if (level == -1) {
+		if (g_curMenuLevel != NULL) {
+			LPMenuLevel prevMenuLevel = g_curMenuLevel->parent;
+			free(g_curMenuLevel);
+			g_curMenuLevel = prevMenuLevel;
+		}
+
+		if (g_curMenuLevel == NULL) {
 			// Menu closing
 
+			if (g_rootMenuInfo.hIconSource != NULL) {
+				// Release icon resource menu
+				DestroyMenu(g_rootMenuInfo.hIconSource);
+				// Release IContextMenu COM interface
+				g_rootMenuInfo.pContextMenu->Release();
+
+				g_rootMenuInfo.hMenu = NULL;
+				g_rootMenuInfo.hIconSource = NULL;
+				g_rootMenuInfo.pContextMenu = NULL;
+			}
+			
 		}
 	}
 
