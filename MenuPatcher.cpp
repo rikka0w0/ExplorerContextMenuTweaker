@@ -422,14 +422,18 @@ void HookShell() {
 	HookAllWnd();
 }
 
-void LoadHookDLL() {
-	HMODULE hPayload = LoadLibraryA(
+HMODULE GetShellPayload() {
+	return LoadLibraryA(
 #ifdef _DEBUG
 		"D:\\Administrator\\Desktop\\ExplorerContextMenuTweaker\\Debug\\x64\\ShellPayload.dll"
 #else
 		"ShellPayload.dll"
 #endif
 	);
+}
+
+void LoadHookDLL() {
+	HMODULE hPayload = GetShellPayload();
 	LPTHREAD_START_ROUTINE funcAddr = (LPTHREAD_START_ROUTINE)GetProcAddress(hPayload, "__PerformInjection");
 	if (funcAddr == NULL) {
 		MessageBoxA(0, "Unable to locate __PerformInjection() in ShellPayload.dll", "", 0);
@@ -438,6 +442,34 @@ void LoadHookDLL() {
 	HANDLE hThread = CreateThread(NULL, 0, funcAddr, NULL, 0, NULL);
 	if (hThread == NULL) {
 		MessageBoxA(0, "Failed to create thread __PerformInjection()", "", 0);
+	}
+	WaitForSingleObject(hThread, INFINITE);
+}
+
+void SetCurrentPIDL(LPCITEMIDLIST pidl) {
+	HMODULE hPayload = GetShellPayload();
+	LPTHREAD_START_ROUTINE funcAddr = (LPTHREAD_START_ROUTINE)GetProcAddress(hPayload, "__SetCurrentPIDL");
+	if (funcAddr == NULL) {
+		MessageBoxA(0, "Unable to locate __SetCurrentPIDL() in ShellPayload.dll", "", 0);
+		return;
+	}
+	HANDLE hThread = CreateThread(NULL, 0, funcAddr, (LPVOID)pidl, 0, NULL);
+	if (hThread == NULL) {
+		MessageBoxA(0, "Failed to create thread __SetCurrentPIDL()", "", 0);
+	}
+	WaitForSingleObject(hThread, INFINITE);
+}
+
+void SetContextMenuFlags(UINT flags) {
+	HMODULE hPayload = GetShellPayload();
+	LPTHREAD_START_ROUTINE funcAddr = (LPTHREAD_START_ROUTINE)GetProcAddress(hPayload, "__SetContextMenuFlags");
+	if (funcAddr == NULL) {
+		MessageBoxA(0, "Unable to locate __SetContextMenuFlags() in ShellPayload.dll", "", 0);
+		return;
+	}
+	HANDLE hThread = CreateThread(NULL, 0, funcAddr, (LPVOID)flags, 0, NULL);
+	if (hThread == NULL) {
+		MessageBoxA(0, "Failed to create thread __SetContextMenuFlags()", "", 0);
 	}
 	WaitForSingleObject(hThread, INFINITE);
 }

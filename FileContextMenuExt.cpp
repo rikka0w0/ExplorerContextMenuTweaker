@@ -120,6 +120,7 @@ IFACEMETHODIMP FileContextMenuExt::Initialize(
 {
 	extern void LoadHookDLL();
 	LoadHookDLL();
+
     if (NULL == pDataObj)
     {
         return E_INVALIDARG;
@@ -129,9 +130,11 @@ IFACEMETHODIMP FileContextMenuExt::Initialize(
 
 	// https://blogs.msdn.microsoft.com/oldnewthing/20130204-00/?p=5363
 	// https://blogs.msdn.microsoft.com/oldnewthing/20160620-00/?p=93705
+	// https://blogs.msdn.microsoft.com/oldnewthing/20130617-00/?p=4073
 	IShellItemArray* hSIA;
 	if (SUCCEEDED( SHCreateShellItemArrayFromDataObject(pDataObj, IID_PPV_ARGS(&hSIA)) )) 
 	{
+		
 		IEnumShellItems* hESI;
 		hSIA->EnumItems(&hESI);
 		if (hESI) {
@@ -142,11 +145,13 @@ IFACEMETHODIMP FileContextMenuExt::Initialize(
 				LPITEMIDLIST pidl;
 				SHGetIDListFromObject(hSI, &pidl);
 
-				LPWSTR name;
-				SHGetNameFromIDList(pidl, SIGDN_DESKTOPABSOLUTEPARSING, &name);
-				StrCpyW(m_szSelectedFile, name);
+				//LPWSTR name;
+				//SHGetNameFromIDList(pidl, SIGDN_DESKTOPABSOLUTEPARSING, &name);
+				//StrCpyW(m_szSelectedFile, name);
 
 				g_pidl = pidl;
+				extern void SetCurrentPIDL(LPCITEMIDLIST pidl);
+				SetCurrentPIDL(pidl);
 				return S_OK;
 			}
 		}
@@ -174,6 +179,8 @@ IFACEMETHODIMP FileContextMenuExt::QueryContextMenu(
 {
 	g_QCMFlags = uFlags;
 	//HookShell();
+	extern void SetContextMenuFlags(UINT flags);
+	SetContextMenuFlags(uFlags);
 	
 
 	/*
