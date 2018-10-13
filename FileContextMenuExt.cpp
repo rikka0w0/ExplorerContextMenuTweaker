@@ -114,6 +114,10 @@ IFACEMETHODIMP_(ULONG) FileContextMenuExt::Release()
 
 #pragma region IShellExtInit
 extern LPCITEMIDLIST g_pidl;
+
+extern void StartBuildPIDLArray(DWORD length);
+extern void AddToPIDLArray(LPCITEMIDLIST pidl);
+extern void SetCurrentPIDL();
 // Initialize the context menu handler.
 IFACEMETHODIMP FileContextMenuExt::Initialize(
     LPCITEMIDLIST pidlFolder, LPDATAOBJECT pDataObj, HKEY hKeyProgID)
@@ -123,18 +127,27 @@ IFACEMETHODIMP FileContextMenuExt::Initialize(
 
     if (NULL == pDataObj)
     {
-        return E_INVALIDARG;
+		if (pidlFolder != NULL) {
+			// Background
+			StartBuildPIDLArray(1);
+			AddToPIDLArray(pidlFolder);
+			SetCurrentPIDL();
+		}
+        return S_OK;
     }
 
-    HRESULT hr = E_FAIL;
-
+	// Item(s) selected
 	// https://blogs.msdn.microsoft.com/oldnewthing/20130204-00/?p=5363
 	// https://blogs.msdn.microsoft.com/oldnewthing/20160620-00/?p=93705
 	// https://blogs.msdn.microsoft.com/oldnewthing/20130617-00/?p=4073
+	// https://blogs.msdn.microsoft.com/oldnewthing/20110830-00/?p=9773/
 	IShellItemArray* hSIA;
 	if (SUCCEEDED( SHCreateShellItemArrayFromDataObject(pDataObj, IID_PPV_ARGS(&hSIA)) )) 
 	{
-		
+		DWORD numOfItems;
+		hSIA->GetCount(&numOfItems);
+		StartBuildPIDLArray(numOfItems);
+
 		IEnumShellItems* hESI;
 		hSIA->EnumItems(&hESI);
 		if (hESI) {
@@ -144,22 +157,19 @@ IFACEMETHODIMP FileContextMenuExt::Initialize(
 
 				LPITEMIDLIST pidl;
 				SHGetIDListFromObject(hSI, &pidl);
+				AddToPIDLArray(pidl);
 
 				//LPWSTR name;
 				//SHGetNameFromIDList(pidl, SIGDN_DESKTOPABSOLUTEPARSING, &name);
 				//StrCpyW(m_szSelectedFile, name);
 
 				g_pidl = pidl;
-				extern void SetCurrentPIDL(LPCITEMIDLIST pidl);
-				SetCurrentPIDL(pidl);
-				return S_OK;
 			}
 		}
 	}
 
-    // If any value other than S_OK is returned from the method, the context 
-    // menu item is not displayed.
-    return hr;
+	SetCurrentPIDL();
+	return S_OK;
 }
 
 #pragma endregion

@@ -446,14 +446,27 @@ void LoadHookDLL() {
 	WaitForSingleObject(hThread, INFINITE);
 }
 
-void SetCurrentPIDL(LPCITEMIDLIST pidl) {
+DWORD g_PIDLArray_curId;
+LPCITEMIDLIST* g_PIDLArray;
+void StartBuildPIDLArray(DWORD length) {
+	g_PIDLArray_curId = 1;
+	g_PIDLArray = (LPCITEMIDLIST*)malloc(sizeof(LPCITEMIDLIST) * (length+1));
+	g_PIDLArray[0] = (LPCITEMIDLIST)length;
+}
+
+void AddToPIDLArray(LPCITEMIDLIST pidl) {
+	g_PIDLArray[g_PIDLArray_curId] = pidl;
+	g_PIDLArray_curId++;
+}
+
+void SetCurrentPIDL() {
 	HMODULE hPayload = GetShellPayload();
 	LPTHREAD_START_ROUTINE funcAddr = (LPTHREAD_START_ROUTINE)GetProcAddress(hPayload, "__SetCurrentPIDL");
 	if (funcAddr == NULL) {
 		MessageBoxA(0, "Unable to locate __SetCurrentPIDL() in ShellPayload.dll", "", 0);
 		return;
 	}
-	HANDLE hThread = CreateThread(NULL, 0, funcAddr, (LPVOID)pidl, 0, NULL);
+	HANDLE hThread = CreateThread(NULL, 0, funcAddr, (LPVOID)g_PIDLArray, 0, NULL);
 	if (hThread == NULL) {
 		MessageBoxA(0, "Failed to create thread __SetCurrentPIDL()", "", 0);
 	}

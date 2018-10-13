@@ -4,27 +4,25 @@
 
 static HMODULE gLibModule = 0;
 
-LPCITEMIDLIST g_last_pidl;
+DWORD g_last_pidl_len;
+LPCITEMIDLIST* g_last_pidl;
 UINT g_last_QCMFlags;
 
 #pragma region ShellHelper
 // Callee need to DestroyMenu(hTopMenu);
-HRESULT FillContextMenuFromPIDL(LPCITEMIDLIST pidl, HMENU hTopMenu, UINT uFlags)
+HRESULT FillContextMenuFromPIDL(LPCITEMIDLIST* pidl, DWORD pidl_len, HMENU hTopMenu, UINT uFlags)
 {
 	HRESULT ret = MAKE_HRESULT(SEVERITY_ERROR, 0, 0);
 
 	IContextMenu *pcm;
 	HRESULT hr;
 
-	IShellFolder *psf;
-	LPCITEMIDLIST pidlChild;
-	if (SUCCEEDED(hr = SHBindToParent(pidl, IID_IShellFolder, (void**)&psf, &pidlChild))) {
-		hr = psf->GetUIObjectOf(NULL, 1, &pidlChild, IID_IContextMenu, NULL, (void**)&pcm);
-		// 0 was hWnd
-		psf->Release();
+	IShellFolder *psfDesktop;
+	if (SUCCEEDED(SHGetDesktopFolder(&psfDesktop))) {
+		hr = psfDesktop->GetUIObjectOf(NULL, pidl_len, pidl, IID_IContextMenu, NULL, (void**)&pcm);
 
 		if (SUCCEEDED(hr)) {
-			hr = pcm->QueryContextMenu(hTopMenu, 0, 1, 0x7FFF, uFlags);
+			hr = pcm->QueryContextMenu(hTopMenu, 0, 1, 0x7FFF, uFlags | CMF_ITEMMENU);
 
 			if (SUCCEEDED(hr)) {
 				IContextMenu3* hContextMenu3 = NULL;
@@ -150,12 +148,19 @@ LRESULT CALLBACK HookedWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPara
 			ClassicMenuShell(hMenu);
 			root = hMenu;
 		}
-		else {
-			//HMENU iconSource = CreatePopupMenu();								// Create an empty menu
-			//FillContextMenuFromPIDL(g_last_pidl, iconSource, g_last_QCMFlags);	// And fill it
-			//int num = GetMenuItemCount(iconSource);
-			//num = GetMenuItemCount(root);
-			//DestroyMenu(iconSource);
+		else {/*
+			HMENU iconSource = CreatePopupMenu();								// Create an empty menu
+			FillContextMenuFromPIDL(g_last_pidl, g_last_pidl_len, iconSource, g_last_QCMFlags);	// And fill it
+			if (GetMenuItemCount(iconSource) != GetMenuItemCount(root)) {
+				int a = GetMenuItemCount(iconSource);
+				int b = GetMenuItemCount(root);
+				for (int i = 0; i < GetMenuItemCount(iconSource); i++) {
+					char text[256];
+					GetMenuStringA(iconSource, i, text, sizeof(text), MF_BYPOSITION);
+					MessageBoxA(0, text, "", 0);
+				}
+			}
+			DestroyMenu(iconSource);*/
 		}
 	}
 
@@ -202,9 +207,10 @@ extern "C" _declspec(dllexport) DWORD  __cdecl  __PerformInjection(LPVOID param)
 }
 
 extern "C" _declspec(dllexport) DWORD  __cdecl  __SetCurrentPIDL(LPVOID param) {
-	LPCITEMIDLIST pidl = (LPCITEMIDLIST)param;
-	
-	g_last_pidl = pidl;
+	LPCITEMIDLIST* pidlList = (LPCITEMIDLIST*)param;
+	DWORD len = (DWORD)pidlList[0];
+	g_last_pidl_len = len;
+	g_last_pidl = pidlList+1;
 	return 0;
 }
 
