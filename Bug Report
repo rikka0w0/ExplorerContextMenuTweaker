@@ -1,0 +1,6 @@
+Issue: Explorer Crash when right clicking on any itme in the All Programs menu when using StartIsBack++
+O.S.: Windows 10 1903 19H1
+
+Description: The program works flawlessly on Windows 10 1903 19H1 however it seems to conflict in part with StartIsBack++. Right clicking on an item or folder in the All Programs menu of StartIsBack++ when NOT using XP Flyout style causes Explorer.exe to crash. It is possible this issue may or may not be happening on earlier builds of Windows 10 as well, however I don't have an earlier build to test with.
+
+Is there any way you could look into this and see if it's the ExplorerContextMenuTweaker causing it or if it's possible that StartIsBack++ might be causing the issue?
